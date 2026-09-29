@@ -1,0 +1,13 @@
+{
+  "validation_macro_f1": {
+    "Logistic Regression": 0.9153712529508707,
+    "Random Forest": 0.9286860402923872,
+    "Extra Trees": 0.9286860402923872
+  },
+  "selected": "Random Forest",
+  "classes": [
+    "Invalid Claim",
+    "Manual Review",
+    "Valid Claim"
+  ]
+}

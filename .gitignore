@@ -1,0 +1,24 @@
+# React dependencies and build
+frontend/node_modules/
+frontend/dist/
+
+# Python temporary files and virtual environments
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local accounts, claims, uploads, and secrets
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.*
+backend/uploads/
+
+# Generated card images; scripts can regenerate them
+output/cards/
+
+# Local Flask secret and temporary claim cards
+backend/.secret_key
+backend/generated_cards/

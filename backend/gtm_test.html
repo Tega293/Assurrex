@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>AssureX GTM Test</title>
+</head>
+<body>
+  <h1>AssureX GTM Test</h1>
+
+  <p>Log in as the member you created:</p>
+  <input id="username" placeholder="Username">
+  <input id="password" type="password" placeholder="Password">
+  <button id="loginButton">Log in</button>
+
+  <p>Enter an existing saved claim ID:</p>
+  <input id="claimId" type="number" min="1" placeholder="Claim ID">
+  <button id="predictButton">Make card and run GTM</button>
+
+  <p id="status"></p>
+  <img id="card" alt="Generated claim card" width="360">
+  <pre id="results"></pre>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.3/dist/teachablemachine-image.min.js"></script>
+
+  <script>
+    const statusBox = document.getElementById("status");
+    const resultsBox = document.getElementById("results");
+    const card = document.getElementById("card");
+    let model;
+
+    async function readJson(response) {
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}`);
+      }
+      return data;
+    }
+
+    document.getElementById("loginButton").onclick = async () => {
+      try {
+        const response = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            username: document.getElementById("username").value,
+            password: document.getElementById("password").value
+          })
+        });
+
+        const data = await readJson(response);
+        statusBox.textContent = `Logged in as ${data.username}`;
+        document.getElementById("password").value = "";
+      } catch (error) {
+        statusBox.textContent = error.message;
+      }
+    };
+
+    document.getElementById("predictButton").onclick = async () => {
+      try {
+        const id = document.getElementById("claimId").value;
+        if (!id) throw new Error("Enter an existing claim ID.");
+
+        statusBox.textContent = "Loading GTM model...";
+        resultsBox.textContent = "";
+
+        if (!model) {
+          model = await tmImage.load(
+            "/gtm-model/model.json",
+            "/gtm-model/metadata.json"
+          );
+        }
+
+        // Show the card made for THIS claim; wait until it loads.
+        card.src = `/api/claims/${id}/card?refresh=${Date.now()}`;
+
+        await new Promise((resolve, reject) => {
+          card.onload = resolve;
+          card.onerror = () => reject(
+            new Error("Could not load claim card. Check login and claim ID.")
+          );
+        });
+
+        statusBox.textContent = "Running GTM prediction...";
+        const predictions = await model.predict(card);
+
+const probabilities = Object.fromEntries(
+  predictions.map(item => [
+    item.className === "Manual Claim"
+      ? "Manual Review"
+      : item.className,
+    item.probability
+  ])
+);
+
+        const required = [
+          "Valid Claim", "Invalid Claim", "Manual Review"
+        ];
+
+        if (
+          required.some(label => !(label in probabilities)) ||
+          Object.keys(probabilities).length !== 3
+        ) {
+          throw new Error(
+            "GTM class names differ. Check metadata.json: " +
+            Object.keys(probabilities).join(", ")
+          );
+        }
+
+        const response = await fetch(
+          `/api/claims/${id}/gtm-result`,
+          {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+              probabilities: probabilities,
+              model_version: "gtm-v1"
+            })
+          }
+        );
+
+        const saved = await readJson(response);
+        resultsBox.textContent = JSON.stringify(saved, null, 2);
+        statusBox.textContent = "GTM prediction saved for claim " + id;
+      } catch (error) {
+        statusBox.textContent = error.message;
+      }
+    };
+  </script>
+</body>
+</html>
